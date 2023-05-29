@@ -56,38 +56,43 @@ class Player(pygame.sprite.Sprite):
         self.rect.centerx = 30
         self.rect.bottom = HEIGHT // 2 + 50
         self.speed_y = 0
+        self.flag = False
+        self.angulo = 270
+        self.centro = self.rect.center
+        self.ancho = self.rect.width
     
     def update(self):
         self.speed_y = 0
-        keystate = pygame.key.get_pressed()
-        if keystate[pygame.K_UP]:
-            self.speed_y = -5
-            #print(self.rect.top)
-        if keystate[pygame.K_DOWN]:
-            self.speed_y = 5
-            #print(self.rect.bottom)
-        self.rect.y += self.speed_y
+        if self.flag == False:
+            keystate = pygame.key.get_pressed()
+            if keystate[pygame.K_UP]:
+                self.speed_y = -5
+                #print(self.rect.top)
+            if keystate[pygame.K_DOWN]:
+                self.speed_y = 5
+                #print(self.rect.bottom)
+            self.rect.y += self.speed_y
         
-        
-        if self.rect.bottom > HEIGHT:
-            self.rect.bottom = HEIGHT
-            
-        if self.rect.top < 0:
-            self.rect.top = 0
+            if self.rect.bottom > HEIGHT:
+                self.rect.bottom = HEIGHT
+                
+            if self.rect.top < 0:
+                self.rect.top = 0
 
 class Meteoro(pygame.sprite.Sprite):
     def __init__(self, vel_max, vel_min):
         super().__init__()
         self.image = random.choice(meteor_images)
         self.image.set_colorkey(BLACK)
+        self.flag = False
         self.rect = self.image.get_rect()
         self.rect.x = random.randrange(840, 900)
         self.rect.y = random.randrange(HEIGHT - self.rect.height)
         self.speedx = random.randrange(vel_max, vel_min)
 
-    def update(self, flag):
+    def update(self):
         self.rect.x += self.speedx
-        if self.rect.left < 0 and flag == False:
+        if self.rect.left < 0 and self.flag == False:
             self.image = random.choice(meteor_images)
             self.image.set_colorkey(BLACK)
             self.rect = self.image.get_rect()
@@ -110,8 +115,8 @@ class Planet(pygame.sprite.Sprite):
         self.speedx = -2
     
     def update(self):
-        if self.rect.x < 950:
-             self.rect.x = 950
+        if self.rect.x < WIDTH - 200:
+            self.rect.x = self.rect.x
         else:
             self.rect.x += self.speedx
 
@@ -140,7 +145,7 @@ class Explosion(pygame.sprite.Sprite):
 				self.rect = self.image.get_rect()
 				self.rect.center = center
                                 
-
+#aqui quedamos 
 def show_go_screen():
 	screen.blit(background, [0, 0])
 	draw_text(screen, "THE QUEST", 65, WIDTH // 2, HEIGHT // 4)
@@ -168,6 +173,28 @@ def show_lup_screen(level):
         if counter == 120:
             waiting = False
 
+def animacion_aterrizaje(player, coordenada): 
+    if player.rect.centerx > WIDTH - player.ancho:
+        player.rect.center = player.rect.center
+        #timer
+        waiting = True
+        while waiting:
+            clock.tick(60)
+            counter += 1
+            if counter == 120:
+                waiting = False
+    else:
+        player.rect.centerx += 2
+
+    if player.rect.centerx > coordenada - 250 and player.angulo < 450:
+        image = pygame.image.load('assets/player.png').convert()
+        image.set_colorkey(BLACK)
+        player.angulo += 1
+        centro = player.rect.center
+        player.image = pygame.transform.rotate(image, player.angulo)
+        player.rect = player.image.get_rect(center=centro)
+        #player.centro = player.rect.center
+        
         
 #cargar imagenes de los meteoros
 meteor_images = []
@@ -207,6 +234,7 @@ vel_max = -5
 vel_min = -1
 num_meteoros = 8
 level_up = False
+score_level = 3
 
 while running:
     if lives == 0:
@@ -221,66 +249,82 @@ while running:
 
         score = 0
         lives = 3
+        contador = 0
+        level_up = False
+        vel_max = -5
+        vel_min = -1
+        num_meteoros = 8
 
-        for i in range(8):
+        aux_meteoros = 0
+
+        for i in range(num_meteoros):
             meteoro = Meteoro(vel_max,vel_min)
-            #all_sprites.add(meteoro)
+            all_sprites.add(meteoro)
             meteoro_list.add(meteoro)
 
     #print(score % 6)
+    ####################INICIO CAMBIO DE NIVEL################################
+    if score % score_level == 0 and contador == 0 and score != 0:
+        #inicia el cambio de nivel
+        for meteoro in meteoro_list:
+             meteoro.flag = True
+             level_up = True
+    
+    if level_up and player.flag == False:
+        for meteoro in meteoro_list:
+            if meteoro.rect.right < 0:
+                aux_meteoros += 1
+                meteoro.kill()
+                
+            if aux_meteoros == num_meteoros:
+                planeta = Planet()
+                #para que el player aparezca encima del planeta 
+                all_sprites.empty()
+                all_sprites.add(planeta)
+                all_sprites.add(player)
+                player.flag = True
 
-    #aumento de nivel
-    if score % 60 == 0 and contador == 0 and score != 0:
-        #----animacion-fin-nivel---------
-        level_up = True
-        planeta = Planet()
-        all_sprites.add(planeta)
+    if player.flag and planeta.rect.x < WIDTH - 200:
+         animacion_aterrizaje(player,planeta.rect.left)
+         
+    if player.rect.centerx > WIDTH - player.ancho:
+        player.kill()
+        planeta.kill()
+        level_up = False
+        show_lup_screen(score // score_level + 1)
 
-        while level_up:
-            clock.tick(60)
-            contador += 1
-            all_sprites.update()
-            meteoro_list.update(level_up)
-            screen.blit(background, [0, 0])
-            all_sprites.draw(screen)
-            meteoro_list.draw(screen)
-            pygame.display.flip()
-            if contador > 600:
-                 level_up = False
-                 contador = 0
+        player = Player()
+        all_sprites.add(player)
+
+        aux_meteoros = 0
 
         num_meteoros += 1
         vel_max -= 1
         vel_min -= 0
 
-        all_sprites = pygame.sprite.Group()
-        meteoro_list = pygame.sprite.Group()
-
-        player = Player()
-        all_sprites.add(player)
-
         for i in range(num_meteoros):
             meteoro = Meteoro(vel_max, vel_min)
-            #all_sprites.add(meteoro)
+            all_sprites.add(meteoro)
             meteoro_list.add(meteoro)
 
-        show_lup_screen(score // 60 + 1)
-        #print('Aumenta nivel')
-
+        contador = 0
+    ######################ACABA LEVELUP##########################         
+                 
     clock.tick(60)
 
     contador += 1
 
     if contador == 60:
-        score +=1
         contador = 0
+        if level_up == False:
+            score += 1
     #buscamso el evento qque cierre la ventana
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
 
     all_sprites.update()
-    meteoro_list.update(level_up)
+    #meteoro_list.update(level_up)
 
     hits = pygame.sprite.spritecollide(player, meteoro_list, True)
     if hits:
@@ -289,7 +333,7 @@ while running:
         all_sprites.add(explosion)
         lives -= 1 
         meteoro = Meteoro(vel_max, vel_min)
-        #all_sprites.add(meteoro)
+        all_sprites.add(meteoro)
         meteoro_list.add(meteoro)
         #print(len(meteoro_list))
         #game_over = True
@@ -297,7 +341,7 @@ while running:
     screen.blit(background, [0, 0])
 
     all_sprites.draw(screen)
-    meteoro_list.draw(screen)
+    #meteoro_list.draw(screen)
 
     #marcador
     draw_text(screen, "PUNTUACION", 20, WIDTH // 2, 10)
