@@ -1,4 +1,61 @@
-import pygame, random
+import pygame, random, sqlite3
+import pygame_textinput
+
+######################### BD ##################################
+class Jugador:
+    def __init__(self, id, nombre, puntuacion):
+        self.id = id
+        self.nombre = nombre
+        self.puntuacion = puntuacion
+
+conn = sqlite3.connect('players.db')
+cursor = conn.cursor()
+
+cursor.execute(""" CREATE TABLE IF NOT EXISTS player (
+    id INT PRIMARY KEY,
+    nombre TEXT NOT NULL,
+    puntuacion INT NOT NULL)""")
+
+
+def save_player(id, name, score):
+    try:
+        cursor.execute(" INSERT INTO player VALUES (?,?,?)",
+                       (id, name, score))
+        conn.commit()
+
+    except:
+        pass
+
+def get_players():
+    cursor.execute("SELECT * FROM player")
+    jugadores = cursor.fetchall()
+    return jugadores
+
+def get_last_id():
+     cursor.execute("SELECT * FROM player")
+     jugadores = cursor.fetchall()
+     if (len(jugadores)) < 1:
+          return 0 
+     else:
+          return jugadores[len(jugadores)-1][0]
+
+def delete_player(id):
+    try:
+        cursor.execute(f"DELETE FROM player WHERE id = {id}")
+        conn.commit()
+    except:
+        pass
+
+def order_by():
+    cursor.execute(f"SELECT * FROM player ORDER BY puntuacion DESC")
+    players = []
+    jugadores = cursor.fetchall()
+    for player in jugadores:
+        # player = Jugador(player[0], player[1], player[2])
+        players.append(Jugador(player[0], player[1], player[2]))
+    # player_1 = Jugador(jugadores[0], jugadores[1], jugadores[2])
+    return players
+
 
 WIDTH = 800
 HEIGHT = 600
@@ -10,6 +67,7 @@ pygame.mixer.init()
 #declaramos el tamanio de la pnatlla
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("THE QUEST")
+textinput = pygame_textinput.TextInputVisualizer()
 clock = pygame.time.Clock()
 
 def draw_text(surface, text, size, x, y):
@@ -147,19 +205,25 @@ class Explosion(pygame.sprite.Sprite):
                                 
 #aqui quedamos 
 def show_go_screen():
-	screen.blit(background, [0, 0])
-	draw_text(screen, "THE QUEST", 65, WIDTH // 2, HEIGHT // 4)
-	draw_text(screen, "Instruciones van aquí", 27, WIDTH // 2, HEIGHT // 2)
-	draw_text(screen, "Presiona cualquier Tecla", 20, WIDTH // 2, HEIGHT * 3/4)
-	pygame.display.flip()
-	waiting = True
-	while waiting:
-		clock.tick(60)
-		for event in pygame.event.get():
-			if event.type == pygame.QUIT:
-				pygame.quit()
-			if event.type == pygame.KEYUP:
-				waiting = False
+    screen.blit(background, [0, 0])
+    draw_text(screen, "THE QUEST", 65, WIDTH // 2, HEIGHT // 4 - 100)
+    draw_text(screen, "Scores mas altos", 40, WIDTH // 2, HEIGHT // 4 + 20)
+    players = order_by()
+    space = HEIGHT // 4 + 80
+    for player in players:
+        draw_text(screen, str(player.nombre), 25, WIDTH // 2 - 50, space)
+        draw_text(screen, str(player.puntuacion), 25, WIDTH // 2 + 50, space)
+        space += 25 
+    draw_text(screen, "Presiona cualquier Tecla", 20, WIDTH // 2, HEIGHT * 3/4)
+    pygame.display.flip()
+    waiting = True
+    while waiting:
+        clock.tick(60)
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+            if event.type == pygame.KEYDOWN:
+                 waiting = False
 
 def show_lup_screen(level):
     screen.fill(BLACK)
@@ -176,7 +240,6 @@ def show_lup_screen(level):
 def animacion_aterrizaje(player, coordenada): 
     if player.rect.centerx > WIDTH - player.ancho:
         player.rect.center = player.rect.center
-        #timer
         waiting = True
         while waiting:
             clock.tick(60)
@@ -230,6 +293,7 @@ contador = 0
 #game_over = True
 running = True
 lives = 0
+play_starts = True
 vel_max = -5
 vel_min = -1
 num_meteoros = 8
@@ -238,6 +302,62 @@ score_level = 3
 
 while running:
     if lives == 0:
+        if play_starts:
+             pass
+        else:
+             #guardar jugadores een la base de datos
+             #print('bd')
+             jugadores = order_by()
+             bucle_bd = False
+             base_font = pygame.font.Font(None, 100)
+             user_text = ''
+
+             if len(jugadores) < 5 :
+                  bucle_bd = True 
+             else:
+                  if (jugadores[len(jugadores) - 1].puntuacion >= score ):
+                       pass
+                  else:
+                       delete_player(jugadores[len(jugadores) - 1].id)
+                       bucle_bd = True
+
+             while bucle_bd:
+                
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        exit()
+                    
+                    if event.type == pygame.KEYDOWN:
+                        if (len(user_text) < 3):
+                            user_text += event.unicode
+                        if event.key == pygame.K_RETURN:
+                            bucle_bd = False
+                            id_player = get_last_id() + 1
+                            save_player(id_player,user_text,score)
+                            waiting = True
+                            counter = 0
+                            while waiting:
+                                clock.tick(60)
+                                counter += 1
+                                if counter == 120:
+                                    waiting = False
+
+                screen.fill(BLACK)
+                draw_text(
+                    screen, 'Legendario, haz roto un nuevo record', 40, WIDTH // 2, 30)
+                draw_text(
+                    screen, 'TU SCORE ' + str(score) , 30, WIDTH // 2, 100)
+                draw_text(screen, 'Ingresa 3 letras', 25, WIDTH // 2, 200)
+
+                text_surface = base_font.render(user_text,True,WHITE)
+                screen.blit(text_surface,(WIDTH//2 - 50 , HEIGHT// 2 - 80))
+
+                draw_text(screen, 'Presiona Enter para salvar', 20, WIDTH // 2, HEIGHT - 250)
+
+                pygame.display.flip()
+                clock.tick(60)
+             
+
         show_go_screen()
 
         #game_over = False
@@ -254,6 +374,7 @@ while running:
         vel_max = -5
         vel_min = -1
         num_meteoros = 8
+        play_starts = False
 
         aux_meteoros = 0
 
@@ -352,3 +473,7 @@ while running:
     pygame.display.flip()
 
 pygame.quit()
+
+conn.commit()
+cursor.close()
+conn.close()
